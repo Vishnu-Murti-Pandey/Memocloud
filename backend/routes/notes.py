@@ -1,0 +1,98 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlmodel import Session, select, desc
+from schemas.note import CreateNoteRequest, CreateNoteResponse, GetAllNotesResponse, GetNoteByIdResponse, UpdateNoteRequest, UpdateNoteResponse, DeleteNoteResponse
+from core.database import get_session
+from models.note import Note
+from models.user import User
+from core.dependencies import get_current_user
+from typing import List
+from datetime import datetime, timezone
+
+note_router = APIRouter(prefix='/api', tags=["Notes"])
+
+@note_router.post('/notes', response_model=CreateNoteResponse)
+def createNote(request: CreateNoteRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    title = request.title
+    content = request.content
+    
+    note = Note(title=title, content=content, user_id=current_user.id)
+    session.add(note)
+    session.commit()
+    session.refresh(note)
+    
+    return CreateNoteResponse(note_id=str(note.id), message="New note created successfully.")
+  
+@note_router.get('/notes', response_model=List[GetAllNotesResponse])  
+def getAllNotes(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    user_id = current_user.id
+    all_notes = session.exec(select(Note).where(Note.user_id == user_id).order_by(desc(Note.updated_at))).all()    
+    return [
+        GetAllNotesResponse(
+            note_id=str(note.id),
+            user_id=str(note.user_id),
+            title=note.title,
+            content=note.content,
+            created_at=note.created_at,
+            updated_at=note.updated_at
+        )
+        for note in all_notes
+    ]
+    
+    
+@note_router.get('/note', response_model=GetNoteByIdResponse)  
+def getNoteByUserId(note_id: str, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    note = session.get(Note, note_id)
+    if not note or note.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Note not found")
+    
+    return GetNoteByIdResponse(
+        user_id=str(note.user_id), 
+        note_id=str(note.id), 
+        title=note.title, 
+        content=note.content, 
+        created_at=note.created_at,
+        updated_at=note.updated_at
+    )
+   
+
+@note_router.patch('/notes', response_model=UpdateNoteResponse)  
+def updateNote(note_id: str, request: UpdateNoteRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    title = request.title
+    content = request.content
+    
+    note = session.get(Note, note_id)
+    if not note or note.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Note not found")
+    
+    if title is not None:
+        note.title = title
+    if content is not None:
+        note.content = content
+    note.updated_at = datetime.now(timezone.utc)
+    
+    session.add(note)
+    session.commit()
+    session.refresh(note)
+    
+    return UpdateNoteResponse(
+        note_id=str(note.id),
+        title=note.title,
+        updated_at=note.updated_at,
+        content=note.content,
+        message="Note updated successfully."
+    )
+    
+@note_router.delete('/notes', response_model=DeleteNoteResponse)
+def deleteNote(note_id: str, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    note = session.get(Note, note_id)
+    
+    if not note or note.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Note not found")
+    
+    session.delete(note)
+    session.commit()
+    
+    return DeleteNoteResponse(message="Note deleted successfully.")
+    
+    
+    
