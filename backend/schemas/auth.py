@@ -15,3 +15,7 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     message: str
     access_token: str
+    refresh_token: str
+    
+class LogoutResponse(BaseModel):
+    message: str

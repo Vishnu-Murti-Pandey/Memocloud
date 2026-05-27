@@ -18,7 +18,7 @@ def verify_password(password: str, hashed_password: str) -> bool:
     return checkpw(password_bytes, hashed_password_bytes)
 
 
-def create_access_token(user_id: str, email: str, expiry: int = 60) -> str:
+def create_access_token(user_id: str, email: str, expiry: int = 15) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=expiry)
     payload = {
         "sub": str(user_id),
@@ -27,6 +27,17 @@ def create_access_token(user_id: str, email: str, expiry: int = 60) -> str:
     }
     token = jwt.encode(payload, JWT_SECRET_KEY, algorithm=ALGORITHM)
     return token
+
+def create_refresh_token(user_id: str, email: str, expiry_days: int = 7):
+    expire = datetime.now(timezone.utc) + timedelta(days=expiry_days)
+    payload = {
+        "user_id": str(user_id),
+        "email": email,
+        "type": "refresh",
+        "exp": expire
+    }
+
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=ALGORITHM)
 
 def decode_access_token(token: str):
     payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=ALGORITHM)
